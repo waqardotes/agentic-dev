@@ -23,6 +23,22 @@
     return err && err.message ? err.message : 'unknown error';
   }
 
+  function formatTime(date) {
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function updateCurrentTime() {
+    const timeEl = document.getElementById('current-time');
+    if (timeEl) {
+      timeEl.textContent = formatTime(new Date());
+    }
+  }
+
   function save() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
@@ -48,7 +64,8 @@
       !!task &&
       typeof task === 'object' &&
       typeof task.id === 'string' &&
-      typeof task.text === 'string'
+      typeof task.text === 'string' &&
+      (task.createdAt === undefined || typeof task.createdAt === 'string')
     );
   }
 
@@ -93,7 +110,12 @@
 
     tasks = parsed
       .filter(isValidTask)
-      .map((task) => ({ id: task.id, text: task.text, done: !!task.done }));
+      .map((task) => ({
+        id: task.id,
+        text: task.text,
+        done: !!task.done,
+        createdAt: task.createdAt
+      }));
 
     const skipped = parsed.length - tasks.length;
     if (skipped > 0) {
@@ -125,9 +147,21 @@
       const span = document.createElement('span');
       span.className = 'task-text';
       span.textContent = task.text;
+      span.addEventListener('click', () => editTask(task.id, task.text));
 
       label.appendChild(checkbox);
       label.appendChild(span);
+
+      const taskTime = document.createElement('span');
+      taskTime.className = 'task-time';
+      if (task.createdAt) {
+        taskTime.textContent = formatTime(new Date(task.createdAt));
+      }
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-edit';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', () => editTask(task.id, task.text));
 
       const del = document.createElement('button');
       del.className = 'btn-delete';
@@ -135,6 +169,10 @@
       del.addEventListener('click', () => removeTask(task.id));
 
       li.appendChild(label);
+      if (task.createdAt) {
+        li.appendChild(taskTime);
+      }
+      li.appendChild(editBtn);
       li.appendChild(del);
       list.appendChild(li);
     });
@@ -149,7 +187,7 @@
     if (!trimmed) return;
 
     clearStatus();
-    tasks.unshift({ id: uid(), text: trimmed, done: false });
+    tasks.unshift({ id: uid(), text: trimmed, done: false, createdAt: new Date().toISOString() });
     commit();
   }
 
@@ -171,6 +209,72 @@
 
     task.done = !task.done;
     commit();
+  }
+
+  function updateTask(id, newText) {
+    const trimmed = (newText || '').trim();
+    if (!trimmed) return;
+
+    clearStatus();
+    const task = tasks.find((item) => item.id === id);
+    if (!task) {
+      console.warn('Tried to update a task that no longer exists', id);
+      showStatus('That task no longer exists.', 'warn');
+      render();
+      return;
+    }
+
+    task.text = trimmed;
+    commit();
+  }
+
+  function editTask(id, currentText) {
+    const li = list.querySelector(`[data-id="${id}"]`);
+    if (!li) return;
+
+    const label = li.querySelector('.task-label');
+    const span = li.querySelector('.task-text');
+    const editBtn = li.querySelector('.btn-edit');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'edit-input';
+    input.value = currentText;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-save';
+    saveBtn.textContent = 'Save';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-cancel';
+    cancelBtn.textContent = 'Cancel';
+
+    function finish() {
+      li.replaceChild(label, li.querySelector('.edit-container'));
+      editBtn.style.display = '';
+    }
+
+    saveBtn.addEventListener('click', () => {
+      updateTask(id, input.value);
+    });
+
+    cancelBtn.addEventListener('click', finish);
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveBtn.click();
+      if (e.key === 'Escape') cancelBtn.click();
+    });
+
+    const container = document.createElement('div');
+    container.className = 'edit-container';
+    container.appendChild(input);
+    container.appendChild(saveBtn);
+    container.appendChild(cancelBtn);
+
+    li.replaceChild(container, label);
+    editBtn.style.display = 'none';
+    input.focus();
+    input.select();
   }
 
   function clearCompleted() {
@@ -195,6 +299,8 @@
 
   load();
   render();
+  updateCurrentTime();
+  setInterval(updateCurrentTime, 1000);
 
-  window.taskApp = { addTask, removeTask, toggle, tasks };
+  window.taskApp = { addTask, removeTask, toggle, updateTask, editTask, tasks };
 })();
