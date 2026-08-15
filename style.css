@@ -112,6 +112,17 @@ label.task-label {
   text-decoration: line-through;
 }
 
+li.task.dragging {
+  opacity: 0.5;
+  background: #e0e7ff;
+  border-color: var(--accent);
+}
+
+li.task.drag-over {
+  border-top: 3px solid var(--accent);
+  padding-top: 7px;
+}
+
 .task-time {
   font-size: 12px;
   color: var(--muted);

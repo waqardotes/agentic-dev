@@ -7,6 +7,7 @@
   const clearBtn = document.getElementById('clear-completed');
 
   let tasks = [];
+  let draggedTaskId = null;
 
   function formatTime(date) {
     return date.toLocaleString('en-US', {
@@ -48,6 +49,46 @@
       const li = document.createElement('li');
       li.className = 'task' + (task.done ? ' done' : '');
       li.dataset.id = task.id;
+      li.draggable = true;
+
+      li.addEventListener('dragstart', (e) => {
+        draggedTaskId = task.id;
+        li.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        document.querySelectorAll('#tasks li').forEach(item => {
+          item.classList.remove('drag-over');
+        });
+      });
+
+      li.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedTaskId && draggedTaskId !== task.id) {
+          li.classList.add('drag-over');
+        }
+      });
+
+      li.addEventListener('dragleave', () => {
+        li.classList.remove('drag-over');
+      });
+
+      li.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (draggedTaskId && draggedTaskId !== task.id) {
+          const draggedIndex = tasks.findIndex(t => t.id === draggedTaskId);
+          const targetIndex = tasks.findIndex(t => t.id === task.id);
+          if (draggedIndex !== -1 && targetIndex !== -1) {
+            const [draggedTask] = tasks.splice(draggedIndex, 1);
+            tasks.splice(targetIndex, 0, draggedTask);
+            save();
+            render();
+          }
+        }
+      });
 
       const label = document.createElement('label');
       label.className = 'task-label';
