@@ -1,12 +1,26 @@
 (function () {
   const STORAGE_KEY = 'tasks:v1';
-  const form = document.getElementById('task-form');
-  const input = document.getElementById('task-input');
-  const list = document.getElementById('tasks');
-  const countEl = document.getElementById('count');
-  const clearBtn = document.getElementById('clear-completed');
+  const byId = (id) => document.getElementById(id);
+
+  const form = byId('task-form');
+  const input = byId('task-input');
+  const list = byId('tasks');
+  const countEl = byId('count');
+  const clearBtn = byId('clear-completed');
 
   let tasks = [];
+
+  // Creates an element, optionally setting class, text, value, and event listeners.
+  function el(tag, { className, text, value, on } = {}) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    if (value != null) node.value = value;
+    if (on) {
+      for (const [event, handler] of Object.entries(on)) node.addEventListener(event, handler);
+    }
+    return node;
+  }
 
   function formatTime(date) {
     return date.toLocaleString('en-US', {
@@ -18,7 +32,7 @@
   }
 
   function updateCurrentTime() {
-    const timeEl = document.getElementById('current-time');
+    const timeEl = byId('current-time');
     if (timeEl) {
       timeEl.textContent = formatTime(new Date());
     }
@@ -26,6 +40,14 @@
 
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  }
+
+  // Applies a mutation to the task list, then persists and re-renders.
+  function update(mutate) {
+    const next = mutate(tasks);
+    if (next) tasks = next;
+    save();
+    render();
   }
 
   function load() {
@@ -45,52 +67,39 @@
     list.innerHTML = '';
 
     tasks.forEach((task) => {
-      const li = document.createElement('li');
-      li.className = 'task' + (task.done ? ' done' : '');
+      const li = el('li', { className: 'task' + (task.done ? ' done' : '') });
       li.dataset.id = task.id;
 
-      const label = document.createElement('label');
-      label.className = 'task-label';
-
-      const checkbox = document.createElement('input');
+      const checkbox = el('input', { on: { change: () => toggle(task.id) } });
       checkbox.type = 'checkbox';
       checkbox.checked = !!task.done;
-      checkbox.addEventListener('change', () => toggle(task.id));
 
-      const span = document.createElement('span');
-      span.className = 'task-text';
-      span.textContent = task.text;
-      span.addEventListener('click', () => editTask(task.id, task.text));
+      const startEdit = () => editTask(task.id, task.text);
 
-      label.appendChild(checkbox);
-      label.appendChild(span);
-
-      const taskTime = document.createElement('span');
-      taskTime.className = 'task-time';
-      if (task.createdAt) {
-        taskTime.textContent = formatTime(new Date(task.createdAt));
-      }
-
-      const editBtn = document.createElement('button');
-      editBtn.className = 'btn-edit';
-      editBtn.textContent = 'Edit';
-      editBtn.addEventListener('click', () => editTask(task.id, task.text));
-
-      const del = document.createElement('button');
-      del.className = 'btn-delete';
-      del.textContent = 'Delete';
-      del.addEventListener('click', () => removeTask(task.id));
+      const label = el('label', { className: 'task-label' });
+      label.append(
+        checkbox,
+        el('span', { className: 'task-text', text: task.text, on: { click: startEdit } })
+      );
 
       li.appendChild(label);
       if (task.createdAt) {
-        li.appendChild(taskTime);
+        li.appendChild(
+          el('span', { className: 'task-time', text: formatTime(new Date(task.createdAt)) })
+        );
       }
-      li.appendChild(editBtn);
-      li.appendChild(del);
+
+      li.append(
+        el('button', { className: 'btn-edit', text: 'Edit', on: { click: startEdit } }),
+        el('button', {
+          className: 'btn-delete',
+          text: 'Delete',
+          on: { click: () => removeTask(task.id) },
+        })
+      );
       list.appendChild(li);
     });
 
-    const total = tasks.length;
     const remaining = tasks.filter((task) => !task.done).length;
     countEl.textContent = remaining + (remaining === 1 ? ' task' : ' tasks') + ' remaining';
   }
@@ -99,24 +108,22 @@
     const trimmed = (text || '').trim();
     if (!trimmed) return;
 
-    tasks.unshift({ id: uid(), text: trimmed, done: false, createdAt: new Date().toISOString() });
-    save();
-    render();
+    update((items) => {
+      items.unshift({ id: uid(), text: trimmed, done: false, createdAt: new Date().toISOString() });
+    });
   }
 
   function removeTask(id) {
-    tasks = tasks.filter((task) => task.id !== id);
-    save();
-    render();
+    update((items) => items.filter((task) => task.id !== id));
   }
 
   function toggle(id) {
     const task = tasks.find((item) => item.id === id);
     if (!task) return;
 
-    task.done = !task.done;
-    save();
-    render();
+    update(() => {
+      task.done = !task.done;
+    });
   }
 
   function updateTask(id, newText) {
@@ -126,9 +133,9 @@
     const task = tasks.find((item) => item.id === id);
     if (!task) return;
 
-    task.text = trimmed;
-    save();
-    render();
+    update(() => {
+      task.text = trimmed;
+    });
   }
 
   function editTask(id, currentText) {
@@ -139,51 +146,46 @@
     const span = li.querySelector('.task-text');
     const editBtn = li.querySelector('.btn-edit');
 
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'edit-input';
-    input.value = currentText;
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn-save';
-    saveBtn.textContent = 'Save';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn-cancel';
-    cancelBtn.textContent = 'Cancel';
-
     function finish() {
       li.replaceChild(label, li.querySelector('.edit-container'));
       editBtn.style.display = '';
     }
 
-    saveBtn.addEventListener('click', () => {
-      updateTask(id, input.value);
+    const editInput = el('input', {
+      className: 'edit-input',
+      value: currentText,
+      on: {
+        keydown: (e) => {
+          if (e.key === 'Enter') saveBtn.click();
+          if (e.key === 'Escape') cancelBtn.click();
+        },
+      },
+    });
+    editInput.type = 'text';
+
+    const saveBtn = el('button', {
+      className: 'btn-save',
+      text: 'Save',
+      on: { click: () => updateTask(id, editInput.value) },
     });
 
-    cancelBtn.addEventListener('click', finish);
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveBtn.click();
-      if (e.key === 'Escape') cancelBtn.click();
+    const cancelBtn = el('button', {
+      className: 'btn-cancel',
+      text: 'Cancel',
+      on: { click: finish },
     });
 
-    const container = document.createElement('div');
-    container.className = 'edit-container';
-    container.appendChild(input);
-    container.appendChild(saveBtn);
-    container.appendChild(cancelBtn);
+    const container = el('div', { className: 'edit-container' });
+    container.append(editInput, saveBtn, cancelBtn);
 
     li.replaceChild(container, label);
     editBtn.style.display = 'none';
-    input.focus();
-    input.select();
+    editInput.focus();
+    editInput.select();
   }
 
   function clearCompleted() {
-    tasks = tasks.filter((task) => !task.done);
-    save();
-    render();
+    update((items) => items.filter((task) => !task.done));
   }
 
   form.addEventListener('submit', (event) => {
