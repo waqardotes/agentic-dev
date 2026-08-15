@@ -99,6 +99,46 @@ label.task-label {
   text-decoration: line-through;
 }
 
+.btn-edit {
+  background: #10b981;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.btn-delete {
+  background: #ef4444;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.btn-save {
+  background: #10b981;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.btn-cancel {
+  background: #6b7280;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.edit-container {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.edit-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: inherit;
+}
+
 .meta {
   margin-top: 14px;
   color: var(--muted);
