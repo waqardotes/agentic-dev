@@ -8,6 +8,22 @@
 
   let tasks = [];
 
+  function formatTime(date) {
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function updateCurrentTime() {
+    const timeEl = document.getElementById('current-time');
+    if (timeEl) {
+      timeEl.textContent = formatTime(new Date());
+    }
+  }
+
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }
@@ -49,6 +65,12 @@
       label.appendChild(checkbox);
       label.appendChild(span);
 
+      const taskTime = document.createElement('span');
+      taskTime.className = 'task-time';
+      if (task.createdAt) {
+        taskTime.textContent = formatTime(new Date(task.createdAt));
+      }
+
       const editBtn = document.createElement('button');
       editBtn.className = 'btn-edit';
       editBtn.textContent = 'Edit';
@@ -60,6 +82,9 @@
       del.addEventListener('click', () => removeTask(task.id));
 
       li.appendChild(label);
+      if (task.createdAt) {
+        li.appendChild(taskTime);
+      }
       li.appendChild(editBtn);
       li.appendChild(del);
       list.appendChild(li);
@@ -74,7 +99,7 @@
     const trimmed = (text || '').trim();
     if (!trimmed) return;
 
-    tasks.unshift({ id: uid(), text: trimmed, done: false });
+    tasks.unshift({ id: uid(), text: trimmed, done: false, createdAt: new Date().toISOString() });
     save();
     render();
   }
@@ -172,6 +197,8 @@
 
   load();
   render();
+  updateCurrentTime();
+  setInterval(updateCurrentTime, 1000);
 
   window.taskApp = { addTask, removeTask, toggle, updateTask, editTask, tasks };
 })();
