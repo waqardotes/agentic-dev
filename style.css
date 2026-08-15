@@ -175,6 +175,28 @@ label.task-label {
   cursor: pointer;
 }
 
+.status {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  display: none;
+}
+
+.status.error {
+  display: block;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.status.warn {
+  display: block;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
 @media (max-width: 480px) {
   .card {
     padding: 16px;

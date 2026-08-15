@@ -5,8 +5,23 @@
   const list = document.getElementById('tasks');
   const countEl = document.getElementById('count');
   const clearBtn = document.getElementById('clear-completed');
+  const statusEl = document.getElementById('status');
 
   let tasks = [];
+
+  function showStatus(message, kind) {
+    statusEl.textContent = message;
+    statusEl.className = 'status ' + (kind || 'error');
+  }
+
+  function clearStatus() {
+    statusEl.textContent = '';
+    statusEl.className = 'status';
+  }
+
+  function describeError(err) {
+    return err && err.message ? err.message : 'unknown error';
+  }
 
   function formatTime(date) {
     return date.toLocaleString('en-US', {
@@ -25,15 +40,87 @@
   }
 
   function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      return true;
+    } catch (err) {
+      console.error('Failed to persist tasks', err);
+      const quotaExceeded =
+        err instanceof DOMException &&
+        (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+      showStatus(
+        quotaExceeded
+          ? 'Storage is full, so this change was not saved. Delete some tasks and try again.'
+          : 'Could not save your tasks (' +
+              describeError(err) +
+              '). Changes will be lost when you reload.'
+      );
+      return false;
+    }
+  }
+
+  function isValidTask(task) {
+    return (
+      !!task &&
+      typeof task === 'object' &&
+      typeof task.id === 'string' &&
+      typeof task.text === 'string' &&
+      (task.createdAt === undefined || typeof task.createdAt === 'string')
+    );
   }
 
   function load() {
+    let raw;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      tasks = raw ? JSON.parse(raw) : [];
-    } catch (e) {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (err) {
+      console.error('Failed to read stored tasks', err);
       tasks = [];
+      showStatus(
+        'Could not read saved tasks (' +
+          describeError(err) +
+          '). Starting with an empty list.'
+      );
+      return;
+    }
+
+    if (!raw) {
+      tasks = [];
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      console.error('Stored tasks are not valid JSON', err);
+      tasks = [];
+      showStatus('Saved tasks were corrupted and could not be loaded. Starting with an empty list.');
+      return;
+    }
+
+    if (!Array.isArray(parsed)) {
+      console.error('Stored tasks have an unexpected shape', parsed);
+      tasks = [];
+      showStatus(
+        'Saved tasks were in an unexpected format and could not be loaded. Starting with an empty list.'
+      );
+      return;
+    }
+
+    tasks = parsed
+      .filter(isValidTask)
+      .map((task) => ({
+        id: task.id,
+        text: task.text,
+        done: !!task.done,
+        createdAt: task.createdAt
+      }));
+
+    const skipped = parsed.length - tasks.length;
+    if (skipped > 0) {
+      console.warn('Skipped ' + skipped + ' invalid stored task(s)');
+      showStatus('Skipped ' + skipped + ' saved task(s) that could not be read.', 'warn');
     }
   }
 
@@ -99,36 +186,46 @@
     const trimmed = (text || '').trim();
     if (!trimmed) return;
 
+    clearStatus();
     tasks.unshift({ id: uid(), text: trimmed, done: false, createdAt: new Date().toISOString() });
-    save();
-    render();
+    commit();
   }
 
   function removeTask(id) {
+    clearStatus();
     tasks = tasks.filter((task) => task.id !== id);
-    save();
-    render();
+    commit();
   }
 
   function toggle(id) {
+    clearStatus();
     const task = tasks.find((item) => item.id === id);
-    if (!task) return;
+    if (!task) {
+      console.warn('Tried to toggle a task that no longer exists', id);
+      showStatus('That task no longer exists.', 'warn');
+      render();
+      return;
+    }
 
     task.done = !task.done;
-    save();
-    render();
+    commit();
   }
 
   function updateTask(id, newText) {
     const trimmed = (newText || '').trim();
     if (!trimmed) return;
 
+    clearStatus();
     const task = tasks.find((item) => item.id === id);
-    if (!task) return;
+    if (!task) {
+      console.warn('Tried to update a task that no longer exists', id);
+      showStatus('That task no longer exists.', 'warn');
+      render();
+      return;
+    }
 
     task.text = trimmed;
-    save();
-    render();
+    commit();
   }
 
   function editTask(id, currentText) {
@@ -181,7 +278,12 @@
   }
 
   function clearCompleted() {
+    clearStatus();
     tasks = tasks.filter((task) => !task.done);
+    commit();
+  }
+
+  function commit() {
     save();
     render();
   }
