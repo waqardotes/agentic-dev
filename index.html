@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Task List</title>
+  <style>
+    :root{--bg:#f6f8fa;--card:#fff;--accent:#2563eb;--muted:#6b7280}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#111}
+    .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:32px}
+    .card{width:100%;max-width:720px;background:var(--card);border-radius:12px;padding:24px;box-shadow:0 6px 18px rgba(16,24,40,0.06)}
+    h1{margin:0 0 12px;font-size:20px}
+    form{display:flex;gap:8px;margin-bottom:16px}
+    input[type=text]{flex:1;padding:10px 12px;border:1px solid #e6e9ef;border-radius:8px;font-size:15px}
+    button{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:8px;font-weight:600;cursor:pointer}
+    button.secondary{background:#efefef;color:#111}
+    ul#tasks{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+    li.task{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;border:1px solid #f0f2f5}
+    label.task-label{flex:1;display:flex;align-items:center;gap:12px;cursor:pointer}
+    .task-text{font-size:15px}
+    .done .task-text{opacity:0.6;text-decoration:line-through}
+    .meta{margin-top:14px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between}
+    .btn-delete{background:transparent;border:0;color:#ef4444;font-weight:700;cursor:pointer}
+    @media (max-width:480px){.card{padding:16px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="card" role="main">
+      <h1>Tasks</h1>
+      <form id="task-form" aria-label="Add task">
+        <input id="task-input" type="text" placeholder="Add a new task and press Enter" autocomplete="off" />
+        <button id="add-btn" type="submit">Add</button>
+      </form>
+      <ul id="tasks" aria-live="polite"></ul>
+      <div class="meta">
+        <div id="count">0 tasks</div>
+        <div>
+          <button id="clear-completed" class="secondary">Clear Completed</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      const STORAGE_KEY = 'tasks:v1';
+      const form = document.getElementById('task-form');
+      const input = document.getElementById('task-input');
+      const list = document.getElementById('tasks');
+      const countEl = document.getElementById('count');
+      const clearBtn = document.getElementById('clear-completed');
+
+      let tasks = [];
+
+      function save(){
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      }
+
+      function load(){
+        try{
+          const raw = localStorage.getItem(STORAGE_KEY);
+          tasks = raw ? JSON.parse(raw) : [];
+        }catch(e){ tasks = [] }
+      }
+
+      function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7) }
+
+      function render(){
+        list.innerHTML = '';
+        tasks.forEach(t => {
+          const li = document.createElement('li');
+          li.className = 'task' + (t.done ? ' done' : '');
+          li.dataset.id = t.id;
+
+          const label = document.createElement('label');
+          label.className = 'task-label';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = !!t.done;
+          checkbox.addEventListener('change', ()=> toggle(t.id));
+
+          const span = document.createElement('span');
+          span.className = 'task-text';
+          span.textContent = t.text;
+
+          label.appendChild(checkbox);
+          label.appendChild(span);
+
+          const del = document.createElement('button');
+          del.className = 'btn-delete';
+          del.textContent = 'Delete';
+          del.addEventListener('click', ()=> removeTask(t.id));
+
+          li.appendChild(label);
+          li.appendChild(del);
+          list.appendChild(li);
+        });
+
+        const total = tasks.length;
+        const remaining = tasks.filter(t=>!t.done).length;
+        countEl.textContent = remaining + (remaining===1 ? ' task' : ' tasks') + ' remaining';
+      }
+
+      function addTask(text){
+        const trimmed = (text || '').trim();
+        if(!trimmed) return;
+        tasks.unshift({id:uid(), text: trimmed, done:false});
+        save(); render();
+      }
+
+      function removeTask(id){
+        tasks = tasks.filter(t=>t.id !== id);
+        save(); render();
+      }
+
+      function toggle(id){
+        const t = tasks.find(x=>x.id===id);
+        if(!t) return;
+        t.done = !t.done;
+        save(); render();
+      }
+
+      function clearCompleted(){
+        tasks = tasks.filter(t=>!t.done);
+        save(); render();
+      }
+
+      form.addEventListener('submit', e=>{
+        e.preventDefault();
+        addTask(input.value);
+        input.value = '';
+        input.focus();
+      });
+
+      clearBtn.addEventListener('click', ()=> clearCompleted());
+
+      // initialize
+      load(); render();
+
+      // expose for debugging (optional)
+      window.taskApp = {addTask, removeTask, toggle, tasks};
+    })();
+  </script>
+</body>
+</html>
